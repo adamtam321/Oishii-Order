@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注文履歴 - Oishii Order</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <a href="index.html" class="logo">Oishii Order</a>
+        <nav id="nav-links"></nav>
+    </header>
+
+    <div class="main-container">
+        <h2>注文履歴</h2>
+        <div id="orders-container" style="margin-top: 1.5rem;">
+            読み込み中...
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        async function loadOrders() {
+            const user = checkAuth();
+            if (!user) return;
+
+            try {
+                // First need to load menu items to display names
+                const menuResp = await fetch(`${API_URL}/menu`);
+                const menuItems = await menuResp.json();
+                const menuMap = {};
+                menuItems.forEach(item => { menuMap[item.id] = item; });
+
+                const response = await fetch(`${API_URL}/orders?userId=${user.id}`);
+                const orders = await response.json();
+
+                const container = document.getElementById('orders-container');
+                container.innerHTML = '';
+
+                if (orders.length === 0) {
+                    container.innerHTML = '<p>過去の注文はありません。</p>';
+                    return;
+                }
+
+                orders.forEach(dto => {
+                    const orderDate = new Date(dto.order.createdAt).toLocaleString();
+                    let total = 0;
+                    
+                    let itemsHtml = '<ul class="order-items">';
+                    dto.items.forEach(item => {
+                        const menuItem = menuMap[item.menuItemId];
+                        const itemName = menuItem ? menuItem.name : '不明な商品';
+                        const itemPrice = menuItem ? menuItem.price : 0;
+                        const lineTotal = itemPrice * item.quantity;
+                        total += lineTotal;
+
+                        itemsHtml += `
+                            <li>
+                                <span>${itemName} x ${item.quantity}</span>
+                                <span>&yen;${lineTotal.toLocaleString()}</span>
+                            </li>
+                        `;
+                    });
+                    itemsHtml += '</ul>';
+
+                    const card = document.createElement('div');
+                    card.className = 'order-card';
+                    card.innerHTML = `
+                        <div class="order-header">
+                            <strong>注文 #${dto.order.id}</strong>
+                            <span>${orderDate}</span>
+                        </div>
+                        ${itemsHtml}
+                        <div style="text-align: right; margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem;">
+                            <strong>合計: &yen;${total.toLocaleString()}</strong>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (err) {
+                console.error("Failed to load orders", err);
+                document.getElementById('orders-container').innerHTML = '<p style="color:red">注文履歴の読み込みに失敗しました。</p>';
+            }
+        }
+
+        loadOrders();
+    </script>
+</body>
+</html>

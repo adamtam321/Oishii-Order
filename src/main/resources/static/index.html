@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>メニュー - Oishii Order</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <a href="index.html" class="logo">Oishii Order</a>
+        <nav id="nav-links"></nav>
+    </header>
+
+    <div class="main-container">
+        <div class="header-actions">
+            <h2>メニュー</h2>
+            <button class="btn" style="width: auto; padding: 0.5rem 1rem;" onclick="placeOrder()" id="checkout-btn" disabled>注文する (<span id="cart-count">0</span> 品)</button>
+        </div>
+
+        <div id="menu-container" class="menu-grid">
+            <!-- Menu items loaded here -->
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        let cart = [];
+        let menuItems = [];
+
+        async function loadMenu() {
+            try {
+                const response = await fetch(`${API_URL}/menu`);
+                menuItems = await response.json();
+                renderMenu();
+            } catch (err) {
+                console.error("Failed to load menu", err);
+            }
+        }
+
+        function renderMenu() {
+            const container = document.getElementById('menu-container');
+            container.innerHTML = '';
+            
+            menuItems.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'menu-card';
+                card.innerHTML = `
+                    <h3>${item.name}</h3>
+                    <div class="price">&yen;${item.price.toLocaleString()}</div>
+                    <div class="menu-actions">
+                        <input type="number" id="qty-${item.id}" class="quantity" value="1" min="1" max="10">
+                        <button class="btn" onclick="addToCart(${item.id})">追加</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function addToCart(itemId) {
+            const user = getAuth();
+            if (!user) {
+                alert("カートに商品を追加するにはログインしてください！");
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const qty = parseInt(document.getElementById(`qty-${itemId}`).value);
+            const existing = cart.find(c => c.menuItemId === itemId);
+            if (existing) {
+                existing.quantity += qty;
+            } else {
+                cart.push({ menuItemId: itemId, quantity: qty });
+            }
+            updateCartBtn();
+        }
+
+        function updateCartBtn() {
+            const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+            document.getElementById('cart-count').innerText = count;
+            document.getElementById('checkout-btn').disabled = count === 0;
+        }
+
+        async function placeOrder() {
+            const user = getAuth();
+            if (!user || cart.length === 0) return;
+
+            try {
+                const response = await fetch(`${API_URL}/orders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: user.id,
+                        items: cart
+                    })
+                });
+
+                if (response.ok) {
+                    alert("注文が完了しました！");
+                    cart = [];
+                    updateCartBtn();
+                    window.location.href = 'orders.html';
+                } else {
+                    const data = await response.json();
+                    alert(data.error || "注文の処理に失敗しました");
+                }
+            } catch (err) {
+                console.error("Order error", err);
+            }
+        }
+
+        // Init
+        loadMenu();
+    </script>
+</body>
+</html>
